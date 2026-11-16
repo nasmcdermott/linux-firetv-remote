@@ -1,0 +1,48 @@
+[project]
+name = "linux-firetv-remote"
+version = "1.0.0"
+description = "Fire TV BLE voice remote + official Amazon Fire TV app receiver for Linux"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "nasmcdermott", email = "nasmcdermott@users.noreply.github.com" },
+]
+dependencies = [
+    # opuslib is a ctypes binding; it needs libopus on the host.
+    # Arch: pacman -S opus ; Alpine: apk add opus
+    "opuslib>=3.0.1",
+    "pyyaml>=6.0",            # GATT enum catalog (02) + voice config
+    "dbus-fast>=2.0",         # talk to BlueZ over D-Bus (02)
+    "faster-whisper>=1.0",    # offline speech-to-text (05, 06)
+    "numpy>=1.24",          # audio buffers for STT and wake-word
+]
+[project.optional-dependencies]
+# Always-listening wake word (07_wake_word.py). Optional because the Fire TV
+# remote path does not use a host microphone, and onnxruntime can lag new
+# Python ABIs (for example cp315) that the base voice stack already supports.
+wakeword = [
+    "pyopen-wakeword>=1.0; python_version < '3.15'",
+    "sounddevice>=0.5.0; python_version < '3.15'",
+]
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+]
+
+[tool.uv]
+# faster-whisper requires onnxruntime for its optional VAD filter only. Exclude
+# it on Python versions where no wheel exists yet (cp315 at the time of
+# writing); voice_core then runs without VAD instead of failing the install.
+override-dependencies = ["onnxruntime; python_version < '3.15'"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[project.urls]
+Homepage = "https://github.com/nasmcdermott/linux-firetv-remote"
+Issues = "https://github.com/nasmcdermott/linux-firetv-remote/issues"

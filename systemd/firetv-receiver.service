@@ -1,0 +1,35 @@
+# User service: official Amazon Fire TV app receiver (DIAL + HTTPS + WSS).
+# Runs the merged receiver: discovery, PIN pairing, app row/icons, keys/text,
+# and the phone app's WSS 9090 voice stream. Voice transcripts use the same
+# faster-whisper model + CommandHandler as the BLE remote (scripts/voice_core.py).
+#
+# The PIN card runs in the system Python with PySide6; this service can run
+# from the project venv. install.sh stamps this checkout's path into FRP and
+# imports WAYLAND_DISPLAY/DISPLAY so the card can appear from the user service.
+[Unit]
+Description=Fire TV receiver (official Amazon Fire TV app remote)
+After=network-online.target graphical-session.target
+Wants=network-online.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+Environment=FRP=%h/linux-firetv-remote
+Environment=PYTHONPATH=${FRP}
+Environment=PYTHONUNBUFFERED=1
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=XDG_CONFIG_HOME=%h/.config
+# Rebuild the venv automatically if a distro Python upgrade broke it.
+TimeoutStartSec=300
+ExecStartPre=/usr/bin/env python3 ${FRP}/scripts/ensure_venv.py --quiet
+ExecStart=${FRP}/.venv/bin/python -m receiver.cli run
+WorkingDirectory=${FRP}
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+SyslogIdentifier=firetv-receiver
+
+[Install]
+WantedBy=default.target

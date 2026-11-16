@@ -1,0 +1,40 @@
+# User service: Fire TV remote voice-button speech-to-text daemon.
+# Runs 06_voice_stt.py at login: hold voice -> speak -> release -> text typed.
+#
+# Setup (edit the two marked lines, then):
+#   mkdir -p ~/.config/systemd/user
+#   cp systemd/voice-stt.service ~/.config/systemd/user/
+#   # needs the udev rule so your user can open hidraw (see udev/91-fire-remote.rules)
+#   # and ydotool/ydotoold for typing on Wayland: sudo dnf install ydotool
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now voice-stt.service
+#   journalctl --user -u voice-stt.service -f
+[Unit]
+Description=Fire TV BLE + phone-app voice daemon (shared faster-whisper model)
+# Start after the graphical session has imported WAYLAND_DISPLAY/DISPLAY into
+# the user manager. ydotool itself only needs XDG_RUNTIME_DIR, but the
+# fallback typers (and future Wayland injection) need the session env.
+After=bluetooth.target ydotoold.service graphical-session.target
+Wants=ydotoold.service
+Before=firetv-receiver.service
+PartOf=graphical-session.target
+
+[Service]
+# REMOTE_MAC is optional and rewritten by install.sh when a remote is found.
+# Empty means the daemon auto-detects the Amazon HID device (survives a
+# re-pair or a distro upgrade that changes the address).
+# FRP = absolute path to this checkout (no trailing slash).
+# NOTE: the executable must be a literal path — systemd does not expand
+# $VARS in ExecStart itself, only in arguments (like ${REMOTE_MAC}).
+Environment=REMOTE_MAC=
+Environment=FRP=%h/linux-firetv-remote
+Environment=XDG_CONFIG_HOME=%h/.config
+# Rebuild the venv automatically if a distro Python upgrade broke it.
+TimeoutStartSec=300
+ExecStartPre=/usr/bin/env python3 ${FRP}/scripts/ensure_venv.py --quiet
+ExecStart=${FRP}/.venv/bin/python ${FRP}/scripts/06_voice_stt.py --mac="${REMOTE_MAC}" --type --wss
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

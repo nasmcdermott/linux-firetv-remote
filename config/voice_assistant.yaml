@@ -1,0 +1,81 @@
+# Fire remote voice assistant configuration.
+# Copy to config/voice_assistant.local.yaml to override without touching this file.
+
+# Custom words that Whisper keeps mishearing. Added as an initial prompt to bias
+# recognition. Whisper does not support a true custom vocabulary, but an initial
+# prompt significantly improves recognition of domain-specific words.
+stt:
+  # faster-whisper model: tiny/base/small/medium/large-v3
+  model: small            # good accuracy/speed balance on CPU
+  device: cpu
+  compute_type: int8
+  language: en
+  beam_size: 5
+  # Hotwords: short list of proper nouns Whisper consistently mishears.
+  # Injected as sot_prev context — lower hallucination risk than initial_prompt.
+  # Keep to 4-10 words. Longer lists cause hallucination.
+  hotwords: "Steam, Konsole, Firefox, Kodi, Waydroid"
+  # Initial prompt biases Whisper toward outputting punctuation as symbols
+  # (.,?!-) and digits instead of spoken words ("period", "hyphen", "one").
+  # Helps dictation produce typed punctuation/numbers more reliably.
+  initial_prompt: "Hello, world. How are you? I'm fine - thanks. Use 1, 2, 3."
+
+# App redirects: spoken name → .desktop stem to actually launch.
+# Use this when the voice-recognized name differs from the .desktop stem,
+# or when you want a word like "files" to open Dolphin instead of Nautilus.
+desktop_redirects:
+  "files": "org.kde.dolphin"
+  "file manager": "org.kde.dolphin"
+
+command:
+  # When the remote voice button is released, listen for up to this many seconds.
+  listen_timeout_secs: 6
+  # Minimum utterance length to transcribe (seconds).
+  min_secs: 0.4
+
+  # Conservative command gate. Only short, explicit commands with a known app
+  # target execute. "open Firefox" anywhere inside a longer dictated sentence,
+  # unknown app names, and clauses like "open X and ..." are typed instead.
+  # Set false to restore the old unrestricted command matching.
+  safe_commands: true
+
+  # Dictation normalization (applied to typed output).
+  # convert_numbers: spoken number words -> digits ("one two" -> "1 2").
+  # Off by default because it can mangle normal speech ("I have one dog").
+  dictation:
+    convert_numbers: false
+
+  # Intent patterns → actions. First match wins.
+  # {app} and {query} are capture groups from the regex.
+  patterns:
+    - regex: "^open\\s+(.+)$"
+      action: launch_app
+    - regex: "^launch\\s+(.+)$"
+      action: launch_app
+    - regex: "^search\\s+for\\s+(.+)$"
+      action: search_file
+    - regex: "^find\\s+(.+)$"
+      action: search_file
+    - regex: "^(type|write|dictate)\\s+(.+)$"
+      action: type_text
+    - regex: "^.+$"
+      action: type_text   # fallback: anything else is dictation text
+
+# Waydroid integration (optional).
+waydroid:
+  enabled: false
+  app_map:
+    # "firefox": "org.mozilla.firefox/org.mozilla.firefox.App"
+    # "settings": "com.android.settings/.Settings"
+  type_then_enter: true
+
+# Host app launching (any desktop; KDE gets window activation via kstart5).
+host:
+  # "open <app>" looks for a .desktop file matching <app>.
+  desktop_dirs:
+    - /usr/share/applications
+    - ~/.local/share/applications
+  # Fallback: if no .desktop match, try running <app> directly as a command.
+  fallback_command: true
+  # Bring an already-running window to front instead of launching a new instance.
+  focus_existing: true

@@ -1,0 +1,20 @@
+# User service: ydotool backend daemon (uinput keystroke injector).
+# The voice STT daemon types through this — it must be up first.
+# Your session already has /dev/uinput write access (uaccess), no root needed.
+#
+# Setup:
+#   sudo dnf install ydotool
+#   mkdir -p ~/.config/systemd/user
+#   cp systemd/ydotoold.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now ydotoold.service
+[Unit]
+Description=ydotool backend daemon (uinput injector)
+
+[Service]
+ExecStart=/usr/bin/ydotoold
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

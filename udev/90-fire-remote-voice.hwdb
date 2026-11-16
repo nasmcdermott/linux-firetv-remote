@@ -1,0 +1,29 @@
+# Fire TV remote input-layer fixes (all Amazon remotes: 4K/Lite/0x0413/0x0427).
+#
+# 1. Voice button is consumer usage 0x0221 -> KEY_SEARCH (217), which Plasma
+#    binds to KRunner. Unmap just that scancode (verified via EVIOCGKEYCODE:
+#    scancode 0x0C0221 -> KEY_SEARCH). Dpad/home/media keys keep working, and
+#    the hidraw voice-audio path (06_voice_stt.py) is unaffected (raw HID).
+#    (Want voice bindable instead of dead? change `reserved` to `f24` and bind
+#    F24 in Plasma shortcuts.)
+# 2. Center/select sends HID keyboard usage 0x58 -> KEY_KPENTER (numpad Enter,
+#    keycode 96), which some fullscreen UIs (Plasma Bigscreen) ignore. Force
+#    plain KEY_ENTER (28). If your target wants the OK semantic instead,
+#    change `enter` to `ok` (KEY_OK).
+# 3. Back button sends HID keyboard usage 0xF1 -> KEY_BACK (browser-back,
+#    keycode 158), which Bigscreen also ignores. Force KEY_ESC (1). If your
+#    target answers to Backspace instead (Kodi-style), change `esc` to
+#    `backspace`.
+#
+# NOTE: kept as one match line + indented properties only — no blank lines or
+# comments inside the stanza (older systemd-hwdb rejects those).
+#
+# Install:
+#   sudo cp udev/90-fire-remote-voice.hwdb /etc/udev/hwdb.d/
+#   sudo systemd-hwdb update
+#   sudo udevadm trigger   # or wake/reconnect the remote, or reboot
+# Verify: hold voice -> KRunner stays shut; select acts as Enter everywhere.
+evdev:input:b0005v0171*
+ KEYBOARD_KEY_c0221=reserved
+ KEYBOARD_KEY_70058=enter
+ KEYBOARD_KEY_700f1=esc

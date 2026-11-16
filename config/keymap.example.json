@@ -1,0 +1,56 @@
+{
+  "_comment": "Copy to config/keymap.json and edit. Only the entries you include override the built-in map, so a partial file is fine. Types: key:<name>[+<name>], command:<shell>, text:<value>, desktop:<.desktop id or path>, app:<display name>, dbus:service,path,interface,method, sequence:{actions:[...]}, noop. App entries may be an action string or {action,name,icon,advertise}; icon may be a PNG/JPG/SVG path, an http(s) URL, or omitted to use the desktop theme icon.",
+  "keys": {
+    "dpad_up": "key:up",
+    "dpad_down": "key:down",
+    "dpad_left": "key:left",
+    "dpad_right": "key:right",
+    "select": "key:enter",
+    "back": "key:esc",
+    "home": {
+      "type": "key",
+      "key": "homepage",
+      "hold": false
+    },
+    "menu": "dbus:org.kde.plasmashell,/PlasmaShell,org.kde.PlasmaShell,activateLauncherMenu",
+    "play": "key:playpause",
+    "volume_up": "command:cec-policy volume up",
+    "volume_down": "command:cec-policy volume down",
+    "mute": "command:cec-policy volume mute",
+    "power": {
+      "type": "sequence",
+      "actions": [
+        "command:cec-policy wake --reason powerkey",
+        "key:power"
+      ]
+    },
+    "wakeup": "noop",
+    "sleep": "noop",
+    "backspace": "key:backspace",
+    "epg": "key:epg"
+  },
+  "media": {
+    "play": "key:playpause",
+    "scan_forward": "key:fastforward",
+    "scan_back": "key:rewind"
+  },
+  "apps": {
+    "settings": {
+      "action": "app:System Settings",
+      "name": "Settings",
+      "advertise": false
+    },
+    "linux.firefox": {
+      "action": "app:Firefox",
+      "name": "Firefox"
+    },
+    "linux.steam": {
+      "action": "app:Steam",
+      "name": "Steam"
+    },
+    "linux.terminal": {
+      "action": "app:Konsole",
+      "name": "Terminal"
+    }
+  }
+}

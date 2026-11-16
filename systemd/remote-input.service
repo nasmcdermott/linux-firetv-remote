@@ -1,0 +1,27 @@
+# User service: Fire TV remote input daemon.
+# Runs remote_input.py: observes the remote's hidraw node and dispatches
+#   Menu      -> shared receiver/actions.py keymap (Plasma Bigscreen overlay)
+#   vol+/vol- -> optional local media keys with --portable
+#   mute      -> optional local media key with --portable
+#   power     -> optional local power key with --portable
+# Requires `cec-policy` on PATH only when CEC is not owning volume/power.
+# No ydotoold needed for Menu (D-Bus only).
+#
+# Prefer `bash install.sh` over installing this by hand; it detects the
+# connected remote, applies the Menu binding, and enables the unit.
+[Unit]
+Description=Fire TV remote input daemon
+After=bluetooth.target
+
+[Service]
+# Optional: set a specific BLE MAC. Empty means auto-detect the Amazon HID
+# device, which survives re-pairing and distro upgrades.
+# NOTE: the executable itself must be a literal path - systemd does not expand
+# $VARS there (only in arguments, like ${REMOTE_MAC} below).
+Environment=REMOTE_MAC=
+ExecStart=/usr/bin/python3 ${FRP}/scripts/remote_input.py --mac="${REMOTE_MAC}" ${REMOTE_INPUT_FLAGS}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

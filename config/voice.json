@@ -1,0 +1,11 @@
+{
+  "_comment": "WSS 9090 transport for the official Fire TV app. STT model/hotwords/initial prompt and command routing come from config/voice_assistant.yaml, the same faster-whisper + CommandHandler the BLE remote uses. mode: command (launch/search/type fallback) | dictation (always type) | log (testing). safe_commands=true only executes short explicit commands with known app targets; everything else is dictated. In the merged install voice-stt.service owns WSS 9090 and shares its model; the receiver detects that automatically.",
+  "enabled": true,
+  "port": 9090,
+  "stt": true,
+  "mode": "command",
+  "safe_commands": true,
+  "save_audio": true,
+  "save_dir": "~/.cache/firetv-receiver/voice",
+  "min_seconds": 0.3
+}

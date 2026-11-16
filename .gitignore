@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.venv.lock
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Local user configuration (generated or edited; examples stay tracked).
+config/keymap.json
+config/voice_assistant.local.yaml
+
+# Capture artifacts — never commit raw binary/HCI captures by default.
+# These can contain link keys, IRKs, and other secrets.
+captures/*.btsnoop
+captures/*.bin
+captures/*.json
+captures/*.yaml
+captures/*.wav
+captures/*.pcap
+captures/*.pcapng
+
+# But keep the directory itself tracked.
+!captures/.gitkeep
+
+# Secrets we must never leak (see README "What not to commit").
+*.ltk
+keys/
+
+# Generated app-vocabulary cache (rebuilt on demand by 08_command_handler.py).
+config/app_vocab.cache

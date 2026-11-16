@@ -1,0 +1,32 @@
+# User service: Fire remote button -> app/file/command launcher.
+# Runs remote_launch.py, which watches the remote's evdev keyboard device
+# (detected by name) and launches the actions mapped in
+# config/button_launch.yaml (default:
+#   KEY_PROGRAM / MSC_SCAN 0xc008d  ->  my-app.desktop).
+#
+# No REMOTE_MAC needed: the device is detected by name. No ydotoold needed:
+# actions are launched as the user through gtk-launch / gio / xdg-open.
+#
+# Prefer `bash install.sh` over installing this by hand; it installs and enables
+# the unit. Edit config/button_launch.yaml to remap other buttons.
+#
+# NOTE: remote-launch.service reads the SAME evdev device that
+# fedora-cec-toolkit's cec-remote-observer.service reads for volume/power. With
+# grab: false (the default) they coexist. With grab: true this unit takes the
+# device exclusively and cec-remote-observer stops seeing the remote's keys.
+#
+# The executable path must be literal - systemd does not expand $VARS in
+# ExecStart itself, only in its arguments.
+[Unit]
+Description=Fire remote button -> app launcher (config/button_launch.yaml)
+After=bluetooth.target
+
+[Service]
+Type=simple
+# The installer stamps ${FRP} with this checkout's absolute path.
+ExecStart=/usr/bin/python3 ${FRP}/scripts/remote_launch.py --config ${FRP}/config/button_launch.yaml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

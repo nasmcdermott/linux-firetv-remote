@@ -1,0 +1,17 @@
+{
+  "_comment": "User config written by install.sh to ~/.config/firetv-receiver/config.json. Leave name/bind null to use the OS hostname and auto-detected LAN address. pin_display: auto, qt, none. inject: ydotool (live) or log (dry run). keymap/voice_config/cert_dir are optional absolute paths. The official app hardcodes HTTPS 8080 and WSS 9090, and DIAL requires port 8009 or 8019; change the other ports only for testing.",
+  "name": null,
+  "bind": null,
+  "ssdp_port": 1900,
+  "desc_port": 60000,
+  "apps_port": 8009,
+  "https_port": 8080,
+  "https_bind": null,
+  "voice_port": 9090,
+  "pin_display": "auto",
+  "inject": "ydotool",
+  "keymap": null,
+  "voice_config": null,
+  "cert_dir": null,
+  "no_voice": false
+}

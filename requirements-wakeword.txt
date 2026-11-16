@@ -1,0 +1,8 @@
+# Optional always-listening wake-word support (scripts/07_wake_word.py).
+# Requires Python 3.11-3.14 for now: pyopen-wakeword needs onnxruntime, which
+# has no cp315 wheels yet. The Fire TV remote path does not need this extra.
+# Install with: pip install -r requirements-wakeword.txt
+# or:           uv sync --extra wakeword
+-r requirements.txt
+pyopen-wakeword>=1.0; python_version < '3.15'
+sounddevice>=0.5.0; python_version < '3.15'

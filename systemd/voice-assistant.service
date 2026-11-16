@@ -1,0 +1,31 @@
+# User service: unified Fire TV remote voice assistant.
+# Combines wake-word command mode (always-listening system mic) +
+# push-to-talk dictation mode (hold remote voice button -> type into field).
+#
+# Setup (edit REMOTE_MAC, then):
+#   mkdir -p ~/.config/systemd/user
+#   cp systemd/voice-assistant.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now voice-assistant.service
+#   journalctl --user -u voice-assistant.service -f
+#
+# Needs: udev rule for hidraw (udev/91-fire-remote.rules), ydotoold for typing,
+# and a working system microphone (PipeWire) for wake-word detection.
+#
+[Unit]
+Description=Fire TV remote voice assistant (wake word + dictation)
+After=bluetooth.target ydotoold.service graphical-session.target
+Wants=ydotoold.service
+PartOf=graphical-session.target
+
+[Service]
+# REMOTE_MAC and FRP are rewritten by install.sh at install time.
+# FRP = absolute path to this checkout (no trailing slash).
+Environment=REMOTE_MAC=AA:BB:CC:DD:EE:FF
+Environment=FRP=%h/linux-firetv-remote
+ExecStart=${FRP}/.venv/bin/python ${FRP}/scripts/voice_assistant.py --mac ${REMOTE_MAC}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

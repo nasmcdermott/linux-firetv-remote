@@ -1,0 +1,11 @@
+# Fire TV Alexa Voice Remote (Amazon vendor 0x0171) over BLE/HID.
+# The voice-audio pipeline drives the remote through its hidraw node, which is
+# root-only by default. This grants the `input` group read/write (most desktop
+# users are already in it: check with `id`), so the STT daemon can run as your
+# user instead of root. Matches every Amazon remote (4K/Lite/0x0413/0x0427/…)
+# via the UHID parent name 0005:0171:<product>.<n>.
+#
+# Install: sudo cp udev/91-fire-remote.rules /etc/udev/rules.d/ && sudo udevadm control --reload
+# Then wake/reconnect the remote (or replug nothing — BLE: toggle Bluetooth)
+# and check: ls -l /dev/hidraw*  (want crw-rw---- root input)
+SUBSYSTEM=="hidraw", KERNELS=="0005:0171:*", GROUP="input", MODE="0660"
