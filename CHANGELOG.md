@@ -32,6 +32,9 @@ squashed release; earlier private development is summarized in
 
 ### Added
 
+- `firetv-remote remap`: capture a physical remote button (evdev key plus
+  MSC_SCAN) and map it to a shell command, file, or `.desktop` app. App-shortcut
+  buttons that all report `KEY_PROGRAM` are distinguished by their scan code.
 - `scripts/ensure_venv.py`, shared by the installer, services and CLI, so the
   installed application repairs its own environment instead of requiring a
   reinstall after a system change.

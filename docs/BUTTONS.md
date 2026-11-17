@@ -57,9 +57,31 @@ buttons:
     action: ~/.local/share/applications/my-app.desktop
 ```
 
-Use `scripts/remap_button.py` to capture a button and write the mapping. The
-action can be a `.desktop` file, any file/directory (`xdg-open`), or a raw
-command.
+### Interactive remap
+
+The easiest way to create a mapping is `firetv-remote remap`:
+
+```bash
+firetv-remote remap                              # capture a button, then enter an action
+firetv-remote remap --action "systemctl --user start my-app.service"
+firetv-remote remap --desktop 3                  # pick from --list-desktops
+firetv-remote remap --button KEY_PROGRAM --scan 0xc008d --action "my-script --flag"
+firetv-remote remap --list
+firetv-remote remap --remove my-script
+firetv-remote remap --reset
+```
+
+It listens on the remote’s evdev keyboard interface, captures the evdev key and
+MSC_SCAN value, writes `config/button_launch.yaml`, and restarts
+`remote-launch.service`. `--timeout`, `--device`, `--file` and `--no-restart`
+are available for unusual setups.
+
+Vendor app-shortcut buttons can all report `KEY_PROGRAM`; the captured
+`scan` is what distinguishes Prime/Netflix/Disney/Peacock. Use `--list-keys`
+for known key names and `--list-desktops` for app numbers.
+
+The action can be a `.desktop` file, any file/directory (`xdg-open`), or a raw
+shell command. `scripts/remap_button.py` remains as a legacy app-only picker.
 
 ## Menu
 

@@ -84,6 +84,10 @@ def parse_key(spec: str) -> int:
     if spec.isdigit():
         return int(spec)
     upper = spec.upper()
+    if upper.startswith("0X"):
+        return int(upper, 16)
+    if upper.startswith("KEY_0X"):
+        return int(upper[4:], 16)
     if upper in KEY_NAMES:
         return KEY_NAMES[upper]
     raise SystemExit(
@@ -276,18 +280,46 @@ def acquire_singleton(directory: str | None = None):
 
 
 class Sender:
-    """Per-key cooldown guard."""
+    """Per-button cooldown guard."""
 
     def __init__(self, cooldown: float):
         self.cooldown = cooldown
-        self.last: dict[int, float] = {}
+        self.last: dict[tuple[int, int | None, str], float] = {}
 
-    def allowed(self, key: int) -> bool:
+    def allowed(self, button: dict) -> bool:
+        ident = (button["key"], button["scan"], button["name"])
         now = time.monotonic()
-        if now - self.last.get(key, 0.0) < self.cooldown:
+        if now - self.last.get(ident, 0.0) < self.cooldown:
             return False
-        self.last[key] = now
+        self.last[ident] = now
         return True
+
+
+def match_button(
+    buttons: list[dict],
+    code: int,
+    scan: int | None,
+    scan_ts: float,
+    now: float,
+    scan_window: float,
+) -> dict | None:
+    """Find the mapping for a key press, preferring an exact MSC_SCAN match.
+
+    Several app-shortcut buttons can report the same evdev key (KEY_PROGRAM),
+    so the scan value is what distinguishes them. A mapping without ``scan``
+    still works as a fallback for keyboard/consumer keys.
+    """
+    fallback = None
+    fresh_scan = scan is not None and now - scan_ts <= scan_window
+    for button in buttons:
+        if button["key"] != code:
+            continue
+        if button["scan"] is None:
+            if fallback is None:
+                fallback = button
+        elif fresh_scan and scan == button["scan"]:
+            return button
+    return fallback
 
 
 def main() -> int:
@@ -314,16 +346,12 @@ def main() -> int:
     grab = cfg["grab"] and not args.no_grab
     path = wait_device(device)
 
-    watch: dict[int, dict] = {}
-    for b in cfg["buttons"]:
-        watch[b["key"]] = b
-
     lock = acquire_singleton()
     if lock is None:
         log("another remote-launch holds the lock; exiting")
         return 0
 
-    log(f"watching {path} ({len(watch)} button(s)), grab={grab}")
+    log(f"watching {path} ({len(cfg['buttons'])} button(s)), grab={grab}")
     for b in cfg["buttons"]:
         extra = f" scan 0x{b['scan']:x}" if b["scan"] is not None else ""
         log(f"  {b['name']}: key 0x{b['key']:x}{extra} -> {b['action']}")
@@ -362,22 +390,18 @@ def main() -> int:
                     continue
                 if value != 1:  # press only; ignore release (0) and repeat (2)
                     continue
-                key_cfg = watch.get(code)
+                key_cfg = match_button(
+                    cfg["buttons"],
+                    code,
+                    last_scan["value"],
+                    last_scan["ts"],
+                    now,
+                    cfg["scan_window"],
+                )
                 if key_cfg is None:
                     continue
 
-                if key_cfg["scan"] is not None:
-                    sv = last_scan["value"]
-                    if sv is None or now - last_scan["ts"] > cfg["scan_window"] \
-                            or sv != key_cfg["scan"]:
-                        log(
-                            f"{key_cfg['name']}: press ignored "
-                            f"(scan {sv:#x if sv is not None else None} != "
-                            f"{key_cfg['scan']:#x})"
-                        )
-                        continue
-
-                if not sender.allowed(key_cfg["key"]):
+                if not sender.allowed(key_cfg):
                     continue
                 log(f"{key_cfg['name']}: press -> {key_cfg['action']}")
                 run_action(key_cfg["action"])

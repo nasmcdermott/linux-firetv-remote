@@ -55,6 +55,8 @@ box works with either input; the receiver is the reason the project exists.
 - **PIN card**: red “Fire TV Remote” Qt card, top-right on KDE Wayland, with
   GNOME/X11 fallbacks.
 - **App row**: configurable names, icons and launch actions.
+- **Interactive remapping**: `firetv-remote remap` captures a physical button and
+  maps it to an app, file, or shell command.
 - **Device memory**: paired phones are stored with `devices.json`; list and
   forget them from the CLI.
 - **Portable defaults**: KDE and non-KDE desktops; CEC or local media keys;
@@ -109,6 +111,7 @@ firetv-remote devices
 firetv-remote forget "iPhone"
 firetv-remote preview-pin --ttl 5
 firetv-remote keys
+firetv-remote remap                    # press a button, map it to a command/app
 firetv-remote run -v                  # foreground receiver
 journalctl --user -u firetv-receiver -f
 journalctl --user -u voice-stt -f

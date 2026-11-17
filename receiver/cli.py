@@ -10,6 +10,7 @@ Commands:
     firetv-remote forget <name>   forget a phone (or --all)
     firetv-remote doctor          check tools, ports, GUI and STT
     firetv-remote preview-pin     show the PIN card for design/testing
+    firetv-remote remap           capture a remote button and map an action
     firetv-remote config init     write the user config
     firetv-remote config show     print the user config
 
@@ -29,7 +30,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import actions, devices, pin_display, server
+from . import actions, devices, pin_display, remap, server
 
 APP_DIR = "firetv-receiver"
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / APP_DIR
@@ -362,6 +363,138 @@ def cmd_keys(args: argparse.Namespace) -> int:
     return 0
 
 
+def _remap_restart(no_restart: bool) -> None:
+    if no_restart:
+        print("Restart when ready: systemctl --user restart remote-launch.service")
+        return
+    ok, message = remap.restart_service()
+    if ok:
+        print("Restarted remote-launch.service")
+    else:
+        print(
+            "Could not restart remote-launch.service"
+            f"{': ' + message if message else ''}.\n"
+            "Run: systemctl --user restart remote-launch.service"
+        )
+
+
+def cmd_remap(args: argparse.Namespace) -> int:
+    config_path = Path(args.file).expanduser() if args.file else remap.DEFAULT_CONFIG
+
+    if args.list_keys:
+        for name, code in sorted(remap.KEY_NAMES.items(), key=lambda item: item[1]):
+            print(f"{name}: {code}")
+        return 0
+
+    if args.list_desktops:
+        entries = remap.list_desktops()
+        if not entries:
+            print("No .desktop entries found.")
+            return 0
+        for index, entry in enumerate(entries, start=1):
+            print(f"{index:3}. {entry['name']}  ({entry['file']})")
+        return 0
+
+    try:
+        cfg = remap.load_config(config_path)
+    except remap.RemapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.list_mappings:
+        remap.list_mappings(cfg)
+        return 0
+
+    if args.reset:
+        remap.reset_config(cfg)
+        path = remap.save_config(cfg, config_path)
+        print(f"Cleared all button mappings in {path}")
+        _remap_restart(args.no_restart)
+        return 0
+
+    if args.remove:
+        removed = remap.remove_mapping(cfg, args.remove)
+        if not removed:
+            print(f"No mapping matched {args.remove!r}")
+            return 1
+        path = remap.save_config(cfg, config_path)
+        print(f"Removed {removed} mapping(s) from {path}")
+        _remap_restart(args.no_restart)
+        return 0
+
+    if args.action and args.desktop:
+        print("error: use --action/--command or --desktop, not both", file=sys.stderr)
+        return 2
+
+    action = args.action
+    if args.desktop:
+        try:
+            action = remap.resolve_desktop(args.desktop)
+        except remap.RemapError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
+    key_spec = args.button
+    scan_spec = args.scan
+    if args.capture or not key_spec:
+        print("Press a button on the Fire TV remote (Ctrl-C to cancel)...", flush=True)
+        try:
+            captured = remap.capture_button(args.device, args.timeout)
+        except remap.RemapError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        except KeyboardInterrupt:
+            print("\nCancelled.", file=sys.stderr)
+            return 130
+        key_spec = captured.key_name
+        if (
+            scan_spec is None
+            and captured.scan is not None
+            and captured.key == remap.KEY_PROGRAM
+        ):
+            scan_spec = f"0x{captured.scan:x}"
+        scan_text = f" scan=0x{captured.scan:x}" if captured.scan is not None else ""
+        print(f"Captured {captured.key_name} (key {captured.key}{scan_text})")
+
+    try:
+        if remap.parse_key(key_spec) == remap.KEY_PROGRAM and not scan_spec:
+            print(
+                "warning: KEY_PROGRAM without --scan matches any app-shortcut "
+                "button. Re-run with --scan to distinguish them.",
+                file=sys.stderr,
+            )
+    except remap.RemapError:
+        pass
+
+    if action is None:
+        if not sys.stdin.isatty():
+            print("error: pass --action/--command or run interactively", file=sys.stderr)
+            return 2
+        action = input("Action (shell command, .desktop path, or file): ").strip()
+    if not action:
+        print("error: action cannot be empty", file=sys.stderr)
+        return 2
+
+    try:
+        entry, created = remap.add_mapping(
+            cfg,
+            key=key_spec,
+            action=action,
+            scan=scan_spec,
+            name=args.name,
+        )
+    except remap.RemapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    path = remap.save_config(cfg, config_path)
+    verb = "Added" if created else "Updated"
+    print(f"{verb} mapping {entry['name']!r} -> {entry['action']}")
+    print(f"Saved {path}")
+    _remap_restart(args.no_restart)
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Argument parsing
 
@@ -406,6 +539,55 @@ def build_parser() -> argparse.ArgumentParser:
     keys = sub.add_parser("keys", help="print the effective action keymap")
     keys.add_argument("--keymap", type=Path, default=None)
     keys.set_defaults(func=cmd_keys)
+
+    remap_p = sub.add_parser(
+        "remap", help="capture a remote button and map it to an action"
+    )
+    remap_p.add_argument(
+        "--capture", action="store_true", help="capture the next remote button press"
+    )
+    remap_p.add_argument(
+        "--button", "--key", dest="button", default=None,
+        help="evdev key name or code (default: capture)",
+    )
+    remap_p.add_argument(
+        "--scan", default=None, help="MSC_SCAN value, decimal or 0x hex"
+    )
+    remap_p.add_argument(
+        "--action", "--command", dest="action", default=None,
+        help="shell command, .desktop path, or file/directory to run",
+    )
+    remap_p.add_argument(
+        "--desktop", default=None, help="desktop entry number/name/path"
+    )
+    remap_p.add_argument("--name", default=None, help="mapping name")
+    remap_p.add_argument("--remove", default=None, help="remove by name, key or scan")
+    remap_p.add_argument("--reset", action="store_true", help="remove all mappings")
+    remap_p.add_argument(
+        "--list", dest="list_mappings", action="store_true",
+        help="list current mappings",
+    )
+    remap_p.add_argument(
+        "--list-keys", action="store_true", help="list known evdev key names"
+    )
+    remap_p.add_argument(
+        "--list-desktops", action="store_true", help="list .desktop entries"
+    )
+    remap_p.add_argument(
+        "--file", default=None,
+        help="button YAML (default: config/button_launch.yaml)",
+    )
+    remap_p.add_argument(
+        "--device", default=None, help="evdev path (default: auto-detect)"
+    )
+    remap_p.add_argument(
+        "--timeout", type=float, default=15.0, help="capture timeout in seconds"
+    )
+    remap_p.add_argument(
+        "--no-restart", action="store_true",
+        help="do not restart remote-launch.service after saving",
+    )
+    remap_p.set_defaults(func=cmd_remap)
 
     config = sub.add_parser("config", help="inspect or create the config")
     config_sub = config.add_subparsers(dest="config_command")
