@@ -2,7 +2,7 @@
 
 Control a Linux media PC with both:
 
-- the **physical Amazon Fire TV Alexa Voice Remote** over Bluetooth LE, and
+- the **physical Amazon Fire TV 4K Alexa Voice Remote** over Bluetooth LE, and
 - the **official Amazon Fire TV app** on iPhone, iPad or Android over the LAN.
 
 Both inputs share one local voice pipeline: faster-whisper transcription, a
