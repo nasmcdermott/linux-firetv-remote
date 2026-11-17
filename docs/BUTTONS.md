@@ -44,7 +44,8 @@ local keymap overrides for the receiver as well.
 
 ## App-shortcut button
 
-`config/button_launch.yaml`:
+`config/button_launch.yaml` (created by the installer from
+`config/button_launch.example.yaml`; the live file is gitignored):
 
 ```yaml
 device: auto
@@ -81,7 +82,9 @@ Vendor app-shortcut buttons can all report `KEY_PROGRAM`; the captured
 for known key names and `--list-desktops` for app numbers.
 
 The action can be a `.desktop` file, any file/directory (`xdg-open`), or a raw
-shell command. `scripts/remap_button.py` remains as a legacy app-only picker.
+shell command. Executable files (AppImages, scripts, binaries) are run directly
+instead of through `xdg-open`/KIO. `scripts/remap_button.py` remains as a legacy
+app-only picker.
 
 ## Menu
 

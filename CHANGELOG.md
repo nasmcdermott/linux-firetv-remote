@@ -8,6 +8,9 @@ squashed release; earlier private development is summarized in
 
 ### Fixed
 
+- Executable button actions (AppImages, scripts, binaries) now run directly
+  instead of through `xdg-open`. KIO rejected the old path with “for security
+  reasons, launching executables is not allowed in this context.”
 - Survive distro Python upgrades: `scripts/ensure_venv.py` runs from
   `install.sh`, both systemd services and the CLI launcher. It detects a stale
   or incomplete `.venv`, rebuilds it, and falls back to a `uv`-managed
@@ -32,6 +35,9 @@ squashed release; earlier private development is summarized in
 
 ### Added
 
+- `config/button_launch.example.yaml` and a gitignored live
+  `config/button_launch.yaml`, so local app paths and commands are not committed.
+  The installer creates the live file on first run.
 - `firetv-remote remap`: capture a physical remote button (evdev key plus
   MSC_SCAN) and map it to a shell command, file, or `.desktop` app. App-shortcut
   buttons that all report `KEY_PROGRAM` are distinguished by their scan code.

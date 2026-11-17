@@ -160,7 +160,9 @@ for the distro/desktop matrix and package names.
   `config/voice_assistant.local.yaml`.
 - `config/voice.json` — WSS transport mode (`command`, `dictation`, `log`),
   WAV saving and the phone-mic port.
-- `config/button_launch.yaml` — physical remote button → app/file/command.
+- `config/button_launch.yaml` — local physical-remote button mappings
+  (gitignored; the installer copies it from
+  `config/button_launch.example.yaml`, and `firetv-remote remap` edits it).
 - `~/.config/firetv-receiver/config.json` — receiver bind/ports/PIN display.
 - `~/.config/firetv-receiver/devices.json` — paired phones.
 

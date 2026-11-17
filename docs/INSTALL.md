@@ -48,6 +48,7 @@ The installer writes only under `$HOME` and the checkout:
 ~/.config/firetv-receiver/devices.json        paired phones
 ~/.config/systemd/user/*.service              user units (if systemd)
 config/keymap.json                            generated portable overrides
+config/button_launch.yaml                     local button mappings (gitignored)
 ```
 
 The installer never runs `sudo`. If a udev/hwdb rule is missing it prints the

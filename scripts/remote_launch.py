@@ -189,6 +189,14 @@ def wait_device(preferred: str | None) -> str:
 
 
 def load_config(path: str) -> dict:
+    if not os.path.isfile(path):
+        return {
+            "device": "auto",
+            "grab": False,
+            "cooldown": 0.4,
+            "scan_window": 0.2,
+            "buttons": [],
+        }
     with open(path, encoding="utf-8") as fh:
         cfg = yaml.safe_load(fh) or {}
     buttons = []
@@ -212,6 +220,43 @@ def load_config(path: str) -> dict:
     }
 
 
+def classify_action(action: str) -> tuple[str, str | list[str]]:
+    """Classify an action as desktop, exec, open, or command.
+
+    Executable files (AppImages, scripts, binaries) must be run directly; KIO
+    refuses to launch executables through xdg-open/kde-open.
+    """
+    expanded = os.path.expanduser(action)
+    if expanded.lower().endswith(".desktop") and os.path.isfile(expanded):
+        return "desktop", expanded
+    if os.path.exists(expanded):
+        if os.path.isfile(expanded) and os.access(expanded, os.X_OK):
+            return "exec", expanded
+        return "open", expanded
+    try:
+        argv = shlex.split(action)
+    except ValueError:
+        argv = [action]
+    if argv:
+        argv[0] = os.path.expanduser(argv[0])
+    return "command", argv
+
+
+def _spawn(argv: list[str]) -> None:
+    try:
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        log(f"failed to start {argv!r}: {exc}")
+        return
+    log(f"started {argv!r} pid={proc.pid}")
+
+
 def _open_path(path: str) -> None:
     for name in ("xdg-open", "gio", "kde-open5", "kde-open", "gnome-open"):
         opener = shutil.which(name)
@@ -231,9 +276,12 @@ def _open_path(path: str) -> None:
 
 
 def run_action(action: str) -> None:
-    if action.lower().endswith(".desktop") and os.path.isfile(action):
+    kind, payload = classify_action(action)
+
+    if kind == "desktop":
         # Never xdg-open a .desktop file: that opens it in a text editor.
-        desktop_id = os.path.basename(action)[:-len(".desktop")]
+        desktop_path = str(payload)
+        desktop_id = os.path.basename(desktop_path)[:-len(".desktop")]
         if shutil.which("gtk-launch"):
             p = subprocess.Popen(
                 ["gtk-launch", desktop_id], stdin=subprocess.DEVNULL,
@@ -247,7 +295,7 @@ def run_action(action: str) -> None:
             return
         if shutil.which("gio"):
             p = subprocess.run(
-                ["gio", "launch", action], capture_output=True, text=True,
+                ["gio", "launch", desktop_path], capture_output=True, text=True,
                 timeout=15, check=False,
             )
             log(f"gio launch rc={p.returncode} {p.stderr.strip()}")
@@ -255,13 +303,15 @@ def run_action(action: str) -> None:
         log(f"cannot launch {action!r}: install gtk-launch or gio")
         return
 
-    if os.path.exists(action):
-        _open_path(action)
+    if kind == "exec":
+        _spawn([str(payload)])
         return
 
-    args = shlex.split(action)
-    p = subprocess.run(args, capture_output=True, text=True, timeout=20, check=False)
-    log(f"ran {args!r} rc={p.returncode} {p.stderr.strip()}")
+    if kind == "open":
+        _open_path(str(payload))
+        return
+
+    _spawn(list(payload))
 
 
 def acquire_singleton(directory: str | None = None):

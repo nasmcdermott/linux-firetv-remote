@@ -12,6 +12,7 @@ dist/
 # Local user configuration (generated or edited; examples stay tracked).
 config/keymap.json
 config/voice_assistant.local.yaml
+config/button_launch.yaml
 
 # Capture artifacts — never commit raw binary/HCI captures by default.
 # These can contain link keys, IRKs, and other secrets.

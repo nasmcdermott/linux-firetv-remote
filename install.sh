@@ -484,6 +484,12 @@ install_buttons() {
   fi
 
   say "install $LAUNCH_UNIT (button -> app launcher)"
+  local button_cfg="$REPO_ROOT/config/button_launch.yaml"
+  local button_example="$REPO_ROOT/config/button_launch.example.yaml"
+  if [[ ! -f "$button_cfg" ]]; then
+    say "create local button config from example"
+    run "cp '$button_example' '$button_cfg'"
+  fi
   if (( INSTALL_SERVICE )); then
     install_unit "$LAUNCH_UNIT"
     if (( HAVE_SYSTEMD )); then run "systemctl --user daemon-reload"; fi

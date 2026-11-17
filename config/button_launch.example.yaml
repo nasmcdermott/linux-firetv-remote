@@ -1,0 +1,16 @@
+# Fire remote button mappings (config/button_launch.yaml).
+#
+# The installer copies this file to config/button_launch.yaml on first run, and
+# `firetv-remote remap` creates/updates it. The live file is gitignored so local
+# app paths and commands stay private.
+#
+# key    : evdev key name (KEY_PROGRAM) or numeric code (362).
+# scan   : optional MSC_SCAN cross-check. Needed to distinguish app-shortcut
+#          buttons that all report KEY_PROGRAM.
+# action : a .desktop file, an existing file/directory, or a shell command.
+#          Executable files (AppImage/script/binary) are run directly.
+device: auto
+grab: false
+cooldown: 0.4
+scan_window: 0.2
+buttons: []

@@ -1,5 +1,0 @@
-device: auto
-grab: false
-cooldown: 0.4
-scan_window: 0.2
-buttons: []
