@@ -219,6 +219,13 @@ Adapted from MIT-licensed upstreams:
 Full provenance and licenses: [`NOTICE.md`](NOTICE.md),
 [`CONTRIBUTORS.md`](CONTRIBUTORS.md), and [`docs/UPSTREAM.md`](docs/UPSTREAM.md).
 
+## Development note
+
+This project was vibe-coded with a mix of **DeepSeek 4.1** and **Claude 5.5**
+models, with the author directing the architecture, protocol research, hardware
+testing, and release review. AI-assisted code gets no special trust: review it,
+run the tests, and treat it under the no-warranty terms above.
+
 ## License and credits
 
 MIT. See [`LICENSE`](LICENSE), [`NOTICE.md`](NOTICE.md),
