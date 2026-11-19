@@ -8,6 +8,18 @@ squashed release; earlier private development is summarized in
 
 ### Fixed
 
+- Bind and advertise the real LAN address after login. The receiver did a
+  single UDP probe and fell back to `127.0.0.1`; if the user service started
+  before Wi-Fi (or while Docker/Tailscale was the only source address), the
+  official Fire TV app could discover the box but never control it. A reinstall
+  or service restart “fixed” it until the next boot. The receiver and phone
+  voice server now wait for a usable LAN IPv4 address (and skip loopback,
+  link-local, Docker, VPN and container bridges) or exit so systemd retries.
+- Answer SSDP searches for `ssdp:all` the way a real Fire TV does. The
+  official Fire TV app discovers with `ST: ssdp:all`; the receiver only
+  answered the DIAL service type, so “Connect to Fire TV” stayed empty even
+  though the box was reachable. The reply set is now DIAL first, then the TV
+  device type, `upnp:rootdevice` and the device UUID, with a `WAKEUP` header.
 - Executable button actions (AppImages, scripts, binaries) now run directly
   instead of through `xdg-open`. KIO rejected the old path with “for security
   reasons, launching executables is not allowed in this context.”

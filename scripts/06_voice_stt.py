@@ -311,7 +311,10 @@ def start_wss(args, worker_ref: dict[str, Any]):
     except (OSError, json.JSONDecodeError) as exc:
         log(f"!! cannot read receiver config {path}: {exc}")
 
-    bind = args.wss_bind or rcfg.get("bind") or dial.detect_lan_ip()
+    bind = args.wss_bind or rcfg.get("bind") or dial.wait_for_lan_ip(10.0)
+    if not bind:
+        log("!! WSS disabled: no usable LAN IPv4 address (connect to Wi-Fi/Ethernet)")
+        return None
     port = args.wss_port or int(rcfg.get("voice_port", 9090))
     cert_dir = Path(
         str(rcfg.get("cert_dir") or "~/.config/firetv-receiver/poc-tls")

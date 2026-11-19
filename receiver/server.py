@@ -666,7 +666,29 @@ def main(argv: list[str] | None = None) -> int:
         )
         args.inject = "log"
 
-    bind_ip = args.bind or dial.detect_lan_ip()
+    if args.bind:
+        bind_ip = args.bind
+    else:
+        # At login the user service can start before Wi-Fi, and Docker/VPN
+        # bridges are up first. Wait for a real LAN address rather than
+        # binding HTTPS to loopback, which the phone can never reach.
+        bind_ip = dial.wait_for_lan_ip(30.0)
+        if not bind_ip:
+            print(
+                "error: no usable LAN IPv4 address after 30s; the phone cannot "
+                "reach this host.\n"
+                "Connect Wi-Fi/Ethernet and systemd will restart the service "
+                "(or set --bind to a fixed address).",
+                file=sys.stderr,
+            )
+            return 1
+        if bind_ip.startswith(("127.", "169.254.")) or bind_ip == "0.0.0.0":
+            print(
+                f"error: refusing to advertise non-LAN address {bind_ip}; "
+                "pass --bind with the address the phone should use.",
+                file=sys.stderr,
+            )
+            return 1
     name = args.name or dial.default_device_name()
     cert_path, key_path = ensure_certificate(args.cert_dir, bind_ip, name)
     udn = load_or_create_udn(args.cert_dir)

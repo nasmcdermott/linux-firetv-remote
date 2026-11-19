@@ -52,6 +52,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "voice_config": None,
     "cert_dir": None,
     "no_voice": False,
+    "verbose": False,
 }
 
 
@@ -135,7 +136,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         argv += ["--voice-config", str(cfg["voice_config"])]
     if cfg.get("no_voice"):
         argv.append("--no-voice")
-    if args.verbose:
+    if args.verbose or cfg.get("verbose"):
         argv.append("--verbose")
     return server.main(argv)
 

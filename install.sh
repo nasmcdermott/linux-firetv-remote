@@ -399,10 +399,15 @@ EOF
       echo "   [dry-run] generate ~/.config/firetv-receiver/poc-tls/cert.pem"
     else
       (cd "$REPO_ROOT" && .venv/bin/python - <<'PY'
+import sys
 from pathlib import Path
 from receiver import dial, server
 cert_dir = Path.home() / '.config' / 'firetv-receiver' / 'poc-tls'
-server.ensure_certificate(cert_dir, dial.detect_lan_ip(), dial.default_device_name())
+ip = dial.wait_for_lan_ip(10.0)
+if not ip:
+    print('note: no LAN IPv4 address yet; the receiver will create the TLS identity at startup')
+    sys.exit(0)
+server.ensure_certificate(cert_dir, ip, dial.default_device_name())
 PY
       )
     fi

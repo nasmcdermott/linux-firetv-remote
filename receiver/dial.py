@@ -30,6 +30,7 @@ Self-test (no phone needed):
 from __future__ import annotations
 
 import argparse
+import fcntl
 import http.server
 import re
 import socket
@@ -48,17 +49,131 @@ DIAL_APP = "FireTVRemote"
 DESC_PORT = 60000
 APPS_PORT = 8009
 
+# Interfaces that are up early at boot (Docker, VPNs, containers) but are not
+# reachable from the phone. Keep this list in step with atv-remote.
+_VIRTUAL_IFACE_PREFIXES = (
+    "br-",
+    "cni",
+    "docker",
+    "flannel",
+    "podman",
+    "tailscale",
+    "tap",
+    "tun",
+    "veth",
+    "virbr",
+    "wg",
+    "zt",
+)
 
-def detect_lan_ip() -> str:
-    """Return the IPv4 address the host would use for a default route."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+def _iface_ipv4(name: str) -> str | None:
     try:
-        sock.connect(("8.8.8.8", 80))  # no packet is sent for UDP connect
-        return sock.getsockname()[0]
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            packed = fcntl.ioctl(
+                sock.fileno(),
+                0x8915,  # SIOCGIFADDR
+                struct.pack("256s", name.encode("utf-8")[:15]),
+            )
+        return socket.inet_ntoa(packed[20:24])
     except OSError:
-        return "127.0.0.1"
-    finally:
-        sock.close()
+        return None
+
+
+def _virtual_iface(name: str) -> bool:
+    return name == "lo" or name.startswith(_VIRTUAL_IFACE_PREFIXES)
+
+
+def _default_route_iface() -> str | None:
+    try:
+        with open("/proc/net/route", encoding="ascii") as handle:
+            next(handle)
+            best: tuple[int, str] | None = None
+            for line in handle:
+                fields = line.split()
+                if len(fields) < 8 or fields[1] != "00000000":
+                    continue
+                try:
+                    metric = int(fields[6])
+                except ValueError:
+                    continue
+                if best is None or metric < best[0]:
+                    best = (metric, fields[0])
+            return best[1] if best else None
+    except (OSError, StopIteration):
+        return None
+
+
+def _ip_is_virtual(address: str) -> bool:
+    for _index, name in socket.if_nameindex():
+        if _iface_ipv4(name) == address:
+            return _virtual_iface(name)
+    return False
+
+
+def _usable(address: str | None) -> bool:
+    if not address or address == "0.0.0.0":
+        return False
+    return not address.startswith(("127.", "169.254."))
+
+
+def mac_for_ip(address: str) -> str:
+    """Return the interface MAC that owns ``address`` (for SSDP WAKEUP)."""
+    for _index, name in socket.if_nameindex():
+        if _iface_ipv4(name) != address:
+            continue
+        try:
+            with open(f"/sys/class/net/{name}/address", encoding="ascii") as handle:
+                return handle.read().strip().upper()
+        except OSError:
+            break
+    return "00:00:00:00:00:00"
+
+
+def detect_lan_ip() -> str | None:
+    """Pick the LAN IPv4 address, never a loopback or container/VPN one.
+
+    The old implementation did a single UDP probe and fell back to
+    ``127.0.0.1``.  At login the user service can start before Wi-Fi, or while
+    Docker's bridge is the only interface with a source address; the receiver
+    then advertised and bound HTTPS to loopback.  The phone could discover the
+    device but never control it until the installer restarted the service.
+    """
+    default = _default_route_iface()
+    if default and not _virtual_iface(default):
+        address = _iface_ipv4(default)
+        if _usable(address):
+            return address
+
+    for host, port in (("1.1.1.1", 53), ("8.8.8.8", 53), ("224.0.0.251", 5353)):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.connect((host, port))  # no packet is sent for UDP connect
+                address = sock.getsockname()[0]
+        except OSError:
+            continue
+        if _usable(address) and not _ip_is_virtual(address):
+            return address
+
+    for _index, name in socket.if_nameindex():
+        if _virtual_iface(name):
+            continue
+        address = _iface_ipv4(name)
+        if _usable(address):
+            return address
+    return None
+
+
+def wait_for_lan_ip(timeout: float = 30.0, interval: float = 0.5) -> str | None:
+    """Wait for Wi-Fi/Ethernet at boot instead of advertising loopback."""
+    deadline = time.monotonic() + timeout
+    while True:
+        address = detect_lan_ip()
+        if address:
+            return address
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(interval)
 
 
 def default_device_name() -> str:
@@ -87,17 +202,51 @@ def build_description(name: str, model: str, udn: str) -> bytes:
     ).encode()
 
 
-def build_ssdp_response(udn: str, location: str) -> bytes:
+def build_ssdp_response(
+    udn: str, location: str, st: str = DIAL_ST, mac: str | None = None
+) -> bytes:
+    usn = udn if st == udn else f"{udn}::{st}"
+    wakeup = f"WAKEUP: MAC={mac};Timeout=30\r\n" if mac else ""
     return (
         "HTTP/1.1 200 OK\r\n"
-        f"ST: {DIAL_ST}\r\n"
-        f"USN: {udn}::{DIAL_ST}\r\n"
+        f"ST: {st}\r\n"
+        f"USN: {usn}\r\n"
         f"LOCATION: {location}\r\n"
         "CACHE-CONTROL: max-age=1800\r\n"
         "EXT:\r\n"
+        f"{wakeup}"
         "SERVER: Linux/4.4.120 UPnP/1.0 Cling/2.0\r\n"
         "\r\n"
     ).encode()
+
+
+def replies_for_st(st: str, udn: str | None = None) -> list[str]:
+    """Return the ST values this device should answer for a search target.
+
+    The official Fire TV app searches with ``ST: ssdp:all``, not the DIAL
+    service type. Real Fire TVs answer that with several records (the device
+    UUID, ``upnp:rootdevice``, the TV device type and the DIAL service).
+    Answering only the DIAL record leaves the app's device list empty.
+    """
+    value = st.strip().lower()
+    if value == "ssdp:all":
+        # DIAL first: the Fire TV app keys off this record when it only reads
+        # the first reply to an ``ssdp:all`` scan.
+        records = [DIAL_ST, "urn:schemas-upnp-org:device:tvdevice:1", "upnp:rootdevice"]
+        if udn:
+            records.append(udn)
+        return records
+    if udn and value == udn.lower():
+        return [udn]
+    if value == "upnp:rootdevice":
+        return ["upnp:rootdevice"]
+    if value == "urn:schemas-upnp-org:device:tvdevice:1":
+        return ["urn:schemas-upnp-org:device:tvdevice:1"]
+    if DIAL_ST.lower() in value:
+        return [DIAL_ST]
+    return []
+
+
 
 
 def build_app_xml() -> bytes:
@@ -247,6 +396,7 @@ class SSDPResponder(threading.Thread):
         super().__init__(daemon=True, name="ssdp")
         self.cfg = cfg
         self.stop_event = threading.Event()
+        self.mac = mac_for_ip(cfg.bind_ip)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(("", cfg.ssdp_port))
@@ -287,16 +437,25 @@ class SSDPResponder(threading.Thread):
             if "M-SEARCH" not in text.upper():
                 continue
             match = re.search(r"(?im)^ST:\s*(\S+)", text)
-            if not match or DIAL_ST.lower() not in match.group(1).lower():
+            if not match:
                 continue
-            response = build_ssdp_response(self.cfg.udn, self.cfg.location)
-            try:
-                self.sock.sendto(response, addr)
-            except OSError as exc:
-                print(f"warning: SSDP reply to {addr} failed: {exc}", file=sys.stderr)
-                continue
+            st = match.group(1).strip()
+            replies = replies_for_st(st, self.cfg.udn)
             if self.cfg.verbose:
-                print(f"[ssdp] M-SEARCH from {addr[0]}:{addr[1]} -> 200", flush=True)
+                print(
+                    f"[ssdp] M-SEARCH from {addr[0]}:{addr[1]} ST={st!r} "
+                    f"-> {len(replies)} reply(ies)",
+                    flush=True,
+                )
+            for reply_st in replies:
+                response = build_ssdp_response(
+                    self.cfg.udn, self.cfg.location, reply_st, mac=self.mac
+                )
+                try:
+                    self.sock.sendto(response, addr)
+                except OSError as exc:
+                    print(f"warning: SSDP reply to {addr} failed: {exc}", file=sys.stderr)
+                    break
 
     def close(self) -> None:
         self.stop_event.set()
@@ -402,7 +561,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.selftest:
         return selftest()
 
-    bind_ip = args.bind or detect_lan_ip()
+    bind_ip = args.bind or wait_for_lan_ip(5.0)
+    if not bind_ip:
+        print(
+            "error: no usable LAN IPv4 address; connect to Wi-Fi/Ethernet first",
+            file=sys.stderr,
+        )
+        return 1
     cfg = Config(
         name=args.name or default_device_name(),
         model=args.model,
